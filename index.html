@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudyQuest App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700&family=Inter:wght@400;600&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        h1, h2, h3 { font-family: 'Unbounded', cursive; }
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .btn-primary { background: #3b82f6; transition: all 0.2s; }
+        .btn-primary:hover { background: #2563eb; transform: scale(1.02); }
+        
+        /* Стили для выполненных задач */
+        .completed { opacity: 0.5; text-decoration: line-through; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-5xl mx-auto">
+        <!-- Шапка: Прогресс -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="glass p-5 rounded-3xl text-center">
+                <p class="text-xs text-slate-400 uppercase mb-1">Твоё золото</p>
+                <p class="text-3xl font-bold text-yellow-400">🪙 <span id="coin-count">0</span></p>
+            </div>
+            <div class="glass p-5 rounded-3xl text-center border-blue-500/30">
+                <p class="text-xs text-slate-400 uppercase mb-1">Уровень</p>
+                <p class="text-3xl font-bold text-blue-400">⭐️ <span id="level-display">1</span></p>
+                <div class="w-full bg-slate-800 h-1.5 mt-2 rounded-full overflow-hidden">
+                    <div id="xp-bar" class="bg-blue-500 h-full w-0 transition-all duration-500"></div>
+                </div>
+            </div>
+            <div class="glass p-5 rounded-3xl text-center">
+                <p class="text-xs text-slate-400 uppercase mb-1">Фокус-таймер</p>
+                <p class="text-3xl font-bold" id="timer-display">25:00</p>
+                <button onclick="toggleTimer()" id="timer-btn" class="text-[10px] mt-1 bg-slate-700 px-3 py-1 rounded-full uppercase font-bold hover:bg-slate-600">Старт</button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Квесты -->
+            <div class="lg:col-span-2 space-y-6">
+                <section class="glass p-6 rounded-[2rem]">
+                    <h2 class="text-xl mb-6 flex items-center gap-2">📜 Книга задач</h2>
+                    <div id="task-container" class="space-y-3 mb-6">
+                        <!-- Задачи -->
+                    </div>
+                    
+                    <div class="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50">
+                        <p class="text-xs font-bold text-slate-500 mb-3 uppercase">Новый квест</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <input type="text" id="task-name" placeholder="Что нужно выучить?" class="bg-slate-800 p-3 rounded-xl border border-slate-700 outline-none focus:border-blue-500">
+                            <input type="date" id="task-date" class="bg-slate-800 p-3 rounded-xl border border-slate-700 outline-none text-slate-400">
+                            <button onclick="createTask()" class="btn-primary md:col-span-2 p-3 rounded-xl font-bold">Записать в свиток (+10 🪙)</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Магазин и Настройки -->
+            <div class="space-y-6">
+                <section class="glass p-6 rounded-[2rem]">
+                    <h2 class="text-xl mb-4">🛒 Лавка</h2>
+                    <div class="space-y-3" id="shop-items">
+                        <!-- Товары -->
+                    </div>
+<div class="mt-6 pt-6 border-t border-slate-700">
+                        <p class="text-[10px] font-bold text-slate-500 mb-2 uppercase">Добавить свой товар</p>
+                        <div class="flex flex-col gap-2">
+                            <input type="text" id="new-item-name" placeholder="Награда (напр: Сон)" class="bg-slate-800 p-2 rounded-lg text-sm outline-none border border-slate-700">
+                            <input type="number" id="new-item-price" placeholder="Цена" class="bg-slate-800 p-2 rounded-lg text-sm outline-none border border-slate-700">
+                            <button onclick="addNewShopItem()" class="bg-slate-700 hover:bg-slate-600 p-2 rounded-lg text-xs font-bold transition">Добавить в лавку</button>
+                        </div>
+                    </div>
+                </section>
+
+                <button onclick="resetData()" class="w-full text-slate-600 hover:text-red-400 text-[10px] uppercase tracking-widest transition">Сбросить все данные</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Глобальное состояние (с загрузкой из памяти) ---
+        let state = JSON.parse(localStorage.getItem('studyQuestData')) || {
+            coins: 0,
+            level: 1,
+            xp: 0,
+            tasks: [],
+            shopItems: [
+                { name: "🍫 Шоколадка", price: 50 },
+                { name: "🎬 Серия сериала", price: 100 }
+            ]
+        };
+
+        let timerSeconds = 25 * 60;
+        let timerRunning = false;
+        let timerInterval;
+
+        // --- Сохранение ---
+        function save() {
+            localStorage.setItem('studyQuestData', JSON.stringify(state));
+            updateUI();
+        }
+
+        // --- Интерфейс ---
+        function updateUI() {
+            document.getElementById('coin-count').innerText = state.coins;
+            document.getElementById('level-display').innerText = state.level;
+            document.getElementById('xp-bar').style.width = state.xp + '%';
+            
+            renderTasks();
+            renderShop();
+        }
+
+        function renderTasks() {
+            const container = document.getElementById('task-container');
+            container.innerHTML = '';
+            const today = new Date().toISOString().split('T')[0];
+
+            state.tasks.forEach((task, index) => {
+                const isLate = task.date && task.date < today;
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center p-4 bg-slate-800/40 rounded-2xl border border-slate-700/50 hover:border-slate-500 transition";
+                div.innerHTML = `
+                    <div>
+                        <p class="font-semibold text-sm md:text-base">${task.name}</p>
+                        <p class="text-[10px] ${isLate ? 'text-red-400 font-bold' : 'text-slate-500'}">📅 ${task.date || 'Без срока'}</p>
+                    </div>
+                    <button onclick="finishTask(${index})" class="bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-xl text-xs font-bold border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition">Готово</button>
+                `;
+                container.appendChild(div);
+            });
+
+            if(state.tasks.length === 0) {
+                container.innerHTML = `<p class="text-center text-slate-600 text-sm py-8 italic">Книги задач пусты. Время добавить новое приключение!</p>`;
+            }
+        }
+
+        function renderShop() {
+            const container = document.getElementById('shop-items');
+            container.innerHTML = '';
+            state.shopItems.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center p-3 bg-slate-800/30 rounded-xl border border-slate-700/30";
+                div.innerHTML = `
+                    <span class="text-sm font-medium">${item.name}</span>
+                    <button onclick="buy(${item.
+price})" class="bg-yellow-600/20 text-yellow-500 px-3 py-1 rounded-lg text-xs font-bold border border-yellow-500/20 hover:bg-yellow-600 hover:text-white transition">${item.price} 🪙</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // --- Логика Квестов ---
+        function createTask() {
+            const name = document.getElementById('task-name').value;
+            const date = document.getElementById('task-date').value;
+            if(!name) return;
+
+            state.tasks.push({ name, date });
+            document.getElementById('task-name').value = '';
+            document.getElementById('task-date').value = '';
+            save();
+        }
+
+        function finishTask(index) {
+            state.tasks.splice(index, 1);
+            state.coins += 10;
+            state.xp += 25;
+
+            if(state.xp >= 100) {
+                state.level++;
+                state.xp = 0;
+                alert("⭐️ Уровень повышен! Ты становишься мудрее.");
+            }
+            save();
+        }
+
+        // --- Логика Магазина ---
+        function addNewShopItem() {
+            const name = document.getElementById('new-item-name').value;
+            const price = parseInt(document.getElementById('new-item-price').value);
+            if(!name || isNaN(price)) return;
+
+            state.shopItems.push({ name, price });
+            document.getElementById('new-item-name').value = '';
+            document.getElementById('new-item-price').value = '';
+            save();
+        }
+
+        function buy(price) {
+            if(state.coins >= price) {
+                state.coins -= price;
+                save();
+                alert("✨ Награда получена! Ты это заслужила.");
+            } else {
+                alert("❌ Маловато монет. Нужно выполнить еще пару квестов!");
+            }
+        }
+
+        // --- Таймер ---
+        function toggleTimer() {
+            const btn = document.getElementById('timer-btn');
+            if(timerRunning) {
+                clearInterval(timerInterval);
+                btn.innerText = "Продолжить";
+            } else {
+                btn.innerText = "Пауза";
+                timerInterval = setInterval(() => {
+                    if(timerSeconds > 0) {
+                        timerSeconds--;
+                        updateTimerDisplay();
+                    } else {
+                        clearInterval(timerInterval);
+                        alert("⏰ Время вышло! Сделай перерыв.");
+                        resetTimer();
+                    }
+                }, 1000);
+            }
+            timerRunning = !timerRunning;
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(timerSeconds / 60);
+            const s = timerSeconds % 60;
+            document.getElementById('timer-display').innerText = `${m}:${s < 10 ? '0'+s : s}`;
+        }
+
+        function resetTimer() {
+            timerSeconds = 25 * 60;
+            updateTimerDisplay();
+            document.getElementById('timer-btn').innerText = "Старт";
+            timerRunning = false;
+        }
+
+        function resetData() {
+            if(confirm("Сбросить всё? Монетки и опыт пропадут!")) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
+        // Старт
+        updateUI();
+        updateTimerDisplay();
+    </script>
+</body>
+</html>
